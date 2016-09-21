@@ -1,0 +1,61 @@
+apply plugin: 'java'
+apply plugin: 'eclipse'
+
+sourceCompatibility = 1.8
+version '0.0.1'
+ext.launcherMain = 'org.kneelawk.helloopencv.HelloOpenCVLaunch'
+
+sourceSets {
+	launcher
+}
+
+println(jar.outputs.files)
+
+repositories {
+	jcenter()
+}
+
+dependencies {
+	compile files('dependencies/libs/opencv-310.jar')
+}
+
+task copyNativeLibs(type: Copy) {
+	from('/usr/local/share/OpenCV/java/') {
+		include '*.so'
+	}
+	into 'dependencies/natives'
+}
+
+task copyLibs(type: Copy) {
+	from('/usr/local/share/OpenCV/java/') {
+		include '*.jar'
+	}
+	into 'dependencies/libs'
+}
+
+task importDenendencies(dependsOn: [copyNativeLibs, copyLibs]) {
+	description 'Imports the opencv dependencies from their installation locations on unix based systems.'
+}
+
+// builds the launch jar
+task launcherJar(type: Jar, dependsOn: [jar, launcherClasses]) {
+	manifest {
+		attributes 'Main-Class': launcherMain
+	}
+	baseName "${project.name}-all"
+	from(configurations.compile) {
+		into 'libs'
+	}
+	from('dependencies/natives') {
+		into 'natives'
+	}
+	from(jar.outputs.files) {
+		into 'app'
+	}
+	from(sourceSets.launcher.output)
+	
+	group 'Build'
+	description 'Creates a jar with all dependencies included.'
+}
+
+assemble.dependsOn launcherJar
