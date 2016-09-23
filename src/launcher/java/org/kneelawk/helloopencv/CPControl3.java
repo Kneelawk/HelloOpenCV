@@ -8,8 +8,8 @@ import java.util.Set;
 
 /**
  * CPControl v3.0
- * Sorry about the mess. This should be an entire library or at least a package,
- * but is stuffed into one class for ease of copy-and-paste.
+ * Sorry about the mess. This should be an entire library or at least
+ * a package, but is stuffed into one class for ease of copy-and-paste.
  */
 public class CPControl3 {
 	public URLClassLoader loader;
