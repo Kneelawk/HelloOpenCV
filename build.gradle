@@ -9,8 +9,6 @@ sourceSets {
 	launcher
 }
 
-println(jar.outputs.files)
-
 repositories {
 	jcenter()
 }
