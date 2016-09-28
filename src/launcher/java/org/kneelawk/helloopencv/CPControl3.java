@@ -6,10 +6,14 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.lang.reflect.Field;
+import java.lang.reflect.InvocationTargetException;
+import java.lang.reflect.Method;
 import java.net.URL;
 import java.net.URLClassLoader;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Set;
 
 /**
@@ -17,10 +21,68 @@ import java.util.Set;
  * least a package, but is stuffed into one class for ease of copy-and-paste.
  */
 public class CPControl3 {
-	public URLClassLoader loader;
+	protected String mainClassName;
 
-	public void launch(String[] args) {
+	protected List<DependencyOperation> operations =
+			new ArrayList<DependencyOperation>();
 
+	protected URLClassLoader loader;
+
+	public CPControl3(String mainClassName) {
+		this.mainClassName = mainClassName;
+
+		Thread hook = new Thread(new Runnable() {
+			@Override
+			public void run() {
+				if (loader != null) {
+					try {
+						loader.close();
+					} catch (IOException e) {
+						System.err.println("Error closing class loader");
+						e.printStackTrace();
+					}
+				}
+			}
+		});
+
+		Runtime.getRuntime().addShutdownHook(hook);
+	}
+	
+	public void addOperation(DependencyOperation operation) {
+		operations.add(operation);
+	}
+
+	public void launch(String[] args) throws IOException {
+		ClassPath path = new ClassPath();
+
+		// do some stuff to path
+
+		for (String dir : path.nativeDirs) {
+			addNativesDir(dir);
+		}
+
+		URL[] urls = path.classpath.toArray(new URL[path.classpath.size()]);
+		loader = new URLClassLoader(urls);
+
+		try {
+			Class<?> mainClass = loader.loadClass(mainClassName);
+			Method mainMethod = mainClass.getMethod("main", String[].class);
+			mainMethod.invoke(null, new Object[] {
+					args
+			});
+		} catch (ClassNotFoundException e) {
+			throw new IOException("Unable to load main class", e);
+		} catch (NoSuchMethodException e) {
+			throw new IOException("Unable to load main method", e);
+		} catch (SecurityException e) {
+			throw new IOException("Unable to start main class", e);
+		} catch (IllegalAccessException e) {
+			throw new IOException("Unable to invoke main method", e);
+		} catch (IllegalArgumentException e) {
+			throw new IOException("Unable to invoke main method", e);
+		} catch (InvocationTargetException e) {
+			throw new IOException("Unable to invoke main method", e);
+		}
 	}
 
 	public static interface DependencyOperation {
@@ -73,11 +135,14 @@ public class CPControl3 {
 			nativeDirs.addAll(dirs);
 		}
 	}
+	
+	public static void extractFileFromSystemClasspath(String path, File to) throws IOException {
+		extractFileFromSystemClasspath(CPControl3.class, path, to);
+	}
 
-	public static void extractFileFromSystemClasspath(String path, File to)
+	public static void extractFileFromSystemClasspath(Class<?> relative, String path, File to)
 			throws IOException {
-		InputStream is =
-				CPControl3.class.getResourceAsStream(path);
+		InputStream is = relative.getResourceAsStream(path);
 		if (is == null)
 			throw new IOException("File: " + path + " not found on classapth");
 		FileOutputStream fos = new FileOutputStream(to);
