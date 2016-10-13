@@ -14,18 +14,22 @@ import java.net.URL;
 import java.net.URLClassLoader;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
 
 /**
- * CPControl v3.0 Sorry about the mess. This should be an entire library or at
- * least a package, but is stuffed into one class for ease of copy-and-paste.
+ * CPControl v3.0<br>
+ * Sorry about the mess. This should be an entire library or at least a package,
+ * but is stuffed into one class for ease of copy-and-paste.
  */
 public class CPControl3 {
+	protected File baseDir;
 	protected String mainClassName;
 
 	protected List<DependencyOperation> operations = new ArrayList<>();
@@ -33,7 +37,12 @@ public class CPControl3 {
 	protected URLClassLoader loader;
 
 	public CPControl3(String mainClassName) {
+		this(mainClassName, PARENT);
+	}
+
+	public CPControl3(String mainClassName, File baseDir) {
 		this.mainClassName = mainClassName;
+		this.baseDir = baseDir;
 
 		Thread hook = new Thread(new Runnable() {
 			@Override
@@ -60,7 +69,7 @@ public class CPControl3 {
 		ClassPath path = new ClassPath();
 
 		for (DependencyOperation operation : operations) {
-			operation.perform(path);
+			operation.perform(path, baseDir);
 		}
 
 		for (String dir : path.nativeDirs) {
@@ -90,6 +99,9 @@ public class CPControl3 {
 			throw new IOException("Unable to invoke main method", e);
 		}
 	}
+
+	public static final String LIBS_DIR_NAME = "libs";
+	public static final String NATIVES_DIR_NAME = "natives";
 
 	public static final File ME = new File(CPControl3.class
 			.getProtectionDomain().getCodeSource().getLocation().getPath());
@@ -134,8 +146,10 @@ public class CPControl3 {
 		}
 	};
 
+	private static Set<File> librariesOnClasspath;
+
 	public static interface DependencyOperation {
-		public void perform(ClassPath cp) throws IOException;
+		public void perform(ClassPath cp, File baseDir) throws IOException;
 	}
 
 	public static class LibraryAddOperation implements DependencyOperation {
@@ -146,7 +160,7 @@ public class CPControl3 {
 		}
 
 		@Override
-		public void perform(ClassPath cp) throws IOException {
+		public void perform(ClassPath cp, File baseDir) throws IOException {
 			cp.addLibrary(libFile);
 		}
 	}
@@ -159,16 +173,185 @@ public class CPControl3 {
 		}
 
 		@Override
-		public void perform(ClassPath cp) throws IOException {
+		public void perform(ClassPath cp, File baseDir) throws IOException {
 			cp.addNativeDir(nativeDir.getCanonicalPath());
 		}
 	}
 
-	public static class LibraryExtractOperation implements DependencyOperation {
+	public static class LibraryExtractFromClasspathOperation
+			implements DependencyOperation {
+
+		private List<ExtractFromCollectionDescription> descs =
+				new ArrayList<>();
+
+		public void addLibrary(ExtractFromCollectionDescription desc) {
+			descs.add(desc);
+		}
+
+		public void addLibrary(String dirName, FileFilter toSearch,
+				EntryFilter searchFor) {
+			addLibrary(new ExtractFromClasspathDescription(dirName, toSearch,
+					searchFor));
+		}
 
 		@Override
-		public void perform(ClassPath cp) throws IOException {
-			// TODO: add more DependencyOperations
+		public void perform(ClassPath cp, File baseDir) throws IOException {
+			final File libsDir = new File(baseDir, LIBS_DIR_NAME);
+			if (!libsDir.exists())
+				libsDir.mkdirs();
+
+			Set<File> libs = new HashSet<>();
+			libs.addAll(getLibrariesOnClasspath());
+			libs.addAll(cp.classpath);
+
+			final Map<File, List<ExtractFromCollectionDescription>> whoWantsWhat =
+					new HashMap<>();
+
+			Iterator<File> it = libs.iterator();
+			while (it.hasNext()) {
+				File lib = it.next();
+				List<ExtractFromCollectionDescription> who = new ArrayList<>();
+				for (ExtractFromCollectionDescription desc : descs) {
+					if (desc.getToSearch().accept(lib)) {
+						who.add(desc);
+					}
+				}
+				if (who.isEmpty()) {
+					it.remove();
+				} else {
+					whoWantsWhat.put(lib, who);
+				}
+			}
+
+			for (final File lib : libs) {
+				OwnedObjectExtractionHandler handler =
+						new OwnedObjectExtractionHandler(libsDir,
+								whoWantsWhat.get(lib));
+				Set<File> extracted =
+						extractFilesMatching(lib, handler, handler);
+
+				cp.classpath.addAll(extracted);
+			}
+		}
+	}
+
+	public static class NativeExtractFromClasspathOperation
+			implements DependencyOperation {
+		private List<ExtractFromCollectionDescription> descs =
+				new ArrayList<>();
+
+		public void addNative(ExtractFromCollectionDescription desc) {
+			descs.add(desc);
+		}
+
+		public void addNative(String dirName, FileFilter toSearch,
+				EntryFilter searchFor) {
+			addNative(new ExtractFromClasspathDescription(dirName, toSearch,
+					searchFor));
+		}
+
+		@Override
+		public void perform(ClassPath cp, File baseDir) throws IOException {
+			final File nativesDir = new File(baseDir, NATIVES_DIR_NAME);
+			if (!nativesDir.exists())
+				nativesDir.mkdirs();
+
+			Set<File> libs = new HashSet<>();
+			libs.addAll(getLibrariesOnClasspath());
+			libs.addAll(cp.classpath);
+
+			final Map<File, List<ExtractFromCollectionDescription>> whoWantsWhat =
+					new HashMap<>();
+
+			Iterator<File> it = libs.iterator();
+			while (it.hasNext()) {
+				File lib = it.next();
+				List<ExtractFromCollectionDescription> who = new ArrayList<>();
+				for (ExtractFromCollectionDescription desc : descs) {
+					if (desc.getToSearch().accept(lib)) {
+						who.add(desc);
+					}
+				}
+				if (who.isEmpty()) {
+					it.remove();
+				} else {
+					whoWantsWhat.put(lib, who);
+				}
+			}
+
+			for (final File lib : libs) {
+				OwnedObjectExtractionHandler handler =
+						new OwnedObjectExtractionHandler(nativesDir,
+								whoWantsWhat.get(lib));
+				Set<File> extracted =
+						extractFilesMatching(lib, handler, handler);
+
+				for (File f : extracted) {
+					cp.nativeDirs.add(f.getParentFile().getCanonicalPath());
+				}
+			}
+		}
+	}
+
+	public static class LibraryExtractFromFileOperation
+			implements DependencyOperation {
+		private File file;
+		private List<ExtractDescription> descs = new ArrayList<>();
+
+		public LibraryExtractFromFileOperation(File file) {
+			this.file = file;
+		}
+
+		public void addLibrary(ExtractDescription desc) {
+			descs.add(desc);
+		}
+
+		public void addLibrary(String dirName, EntryFilter searchFor) {
+			addLibrary(new ExtractFromFileDescription(dirName, searchFor));
+		}
+
+		@Override
+		public void perform(ClassPath cp, File baseDir) throws IOException {
+			File libsDir = new File(baseDir, LIBS_DIR_NAME);
+
+			OwnedObjectExtractionHandler handler =
+					new OwnedObjectExtractionHandler(libsDir, descs);
+
+			Set<File> extracted = extractFilesMatching(file, handler, handler);
+
+			cp.classpath.addAll(extracted);
+		}
+	}
+
+	public static class NativeExtractFromFileOperation
+			implements DependencyOperation {
+		private File file;
+		private List<ExtractDescription> descs = new ArrayList<>();
+
+		public NativeExtractFromFileOperation(File file) {
+			this.file = file;
+		}
+
+		public void addNative(ExtractDescription desc) {
+			descs.add(desc);
+		}
+
+		public void addNative(String dirName, EntryFilter searchFor) {
+			addNative(new ExtractFromFileDescription(dirName, searchFor));
+		}
+
+		@Override
+		public void perform(ClassPath cp, File baseDir) throws IOException {
+			File nativesDir = new File(baseDir, NATIVES_DIR_NAME);
+
+			OwnedObjectExtractionHandler handler =
+					new OwnedObjectExtractionHandler(nativesDir, descs);
+
+			Set<File> extracted = extractFilesMatching(file, handler, handler);
+
+			for (File f : extracted) {
+				cp.nativeDirs.add(f.getParentFile().getCanonicalPath());
+			}
 		}
 	}
 
@@ -286,6 +469,19 @@ public class CPControl3 {
 		public File getFile(String path);
 	}
 
+	public static class FlatDestinationProvider implements DestinationProvider {
+		private File parent;
+
+		public FlatDestinationProvider(File parent) {
+			this.parent = parent;
+		}
+
+		@Override
+		public File getFile(String path) {
+			return new File(parent, getPathName(path));
+		}
+	}
+
 	public static class DirectoryDestinationProvider
 			implements DestinationProvider {
 		private File parent;
@@ -296,20 +492,96 @@ public class CPControl3 {
 
 		@Override
 		public File getFile(String path) {
-			return new File(parent, getPathName(path));
+			return new File(parent, path);
 		}
 	}
 
-	public static class FlatDestinationProvider implements DestinationProvider {
-		private File parent;
+	public static class OwnedObjectExtractionHandler
+			implements EntryFilter, DestinationProvider {
+		private File baseDir;
+		private Collection<? extends ExtractDescription> descs;
 
-		public FlatDestinationProvider(File parent) {
-			this.parent = parent;
+		private Map<String, String> acceptedDirNames = new HashMap<>();
+
+		public OwnedObjectExtractionHandler(File baseDir,
+				Collection<? extends ExtractDescription> descs) {
+			this.baseDir = baseDir;
+			this.descs = descs;
 		}
 
 		@Override
 		public File getFile(String path) {
-			return new File(parent, path);
+			// getFile should not be called until the path has already been
+			// accepted
+			if (!acceptedDirNames.containsKey(path))
+				throw new RuntimeException(
+						"File destination requested before the path has been accepted");
+			File dir = new File(baseDir, acceptedDirNames.get(path));
+			if (!dir.exists())
+				dir.mkdir();
+			return new File(dir, getPathName(path));
+		}
+
+		@Override
+		public boolean accept(String path) throws IOException {
+			boolean keep = false;
+			for (ExtractDescription desc : descs) {
+				if (desc.getSearchFor().accept(path)) {
+					keep = true;
+					acceptedDirNames.put(path, desc.getDirName());
+					break;
+				}
+			}
+			return keep;
+		}
+
+	}
+
+	public static interface ExtractDescription {
+		public String getDirName();
+
+		public EntryFilter getSearchFor();
+	}
+
+	public static class ExtractFromFileDescription
+			implements ExtractDescription {
+		private String dirName;
+		private EntryFilter searchFor;
+
+		public ExtractFromFileDescription(String dirName,
+				EntryFilter searchFor) {
+			super();
+			this.dirName = dirName;
+			this.searchFor = searchFor;
+		}
+
+		public String getDirName() {
+			return dirName;
+		}
+
+		public EntryFilter getSearchFor() {
+			return searchFor;
+		}
+	}
+
+	public static interface ExtractFromCollectionDescription
+			extends ExtractDescription {
+		public FileFilter getToSearch();
+	}
+
+	public static class ExtractFromClasspathDescription
+			extends ExtractFromFileDescription
+			implements ExtractFromCollectionDescription {
+		private FileFilter toSearch;
+
+		public ExtractFromClasspathDescription(String dirName,
+				FileFilter toSearch, EntryFilter searchFor) {
+			super(dirName, searchFor);
+			this.toSearch = toSearch;
+		}
+
+		public FileFilter getToSearch() {
+			return toSearch;
 		}
 	}
 
@@ -324,7 +596,7 @@ public class CPControl3 {
 		return classPath.split(File.pathSeparator);
 	}
 
-	public static Set<File> findLibrariesOnClasspath() throws IOException {
+	private static Set<File> findLibrariesOnClasspath() throws IOException {
 		Set<File> found = new HashSet<>();
 
 		String[] classPath = getClassPath();
@@ -335,6 +607,18 @@ public class CPControl3 {
 		}
 
 		return found;
+	}
+
+	public static Set<File> recalculateLibrariesOnClasspath()
+			throws IOException {
+		return librariesOnClasspath = findLibrariesOnClasspath();
+	}
+
+	public static Set<File> getLibrariesOnClasspath() throws IOException {
+		if (librariesOnClasspath == null) {
+			librariesOnClasspath = findLibrariesOnClasspath();
+		}
+		return librariesOnClasspath;
 	}
 
 	private static void recursiveSearch(Collection<File> found,
@@ -404,33 +688,81 @@ public class CPControl3 {
 			throws IOException {
 		Set<File> extractedFiles = new HashSet<>();
 
-		ZipInputStream zis = new ZipInputStream(new FileInputStream(archive));
-		ZipEntry entry;
+		if (archive.isDirectory()) {
+			extractFilesMatchingFromDirectory(archive, new HashSet<>(),
+					extractedFiles, "/", filter, destinations);
+		} else {
+			ZipInputStream zis =
+					new ZipInputStream(new FileInputStream(archive));
+			ZipEntry entry;
 
-		while ((entry = zis.getNextEntry()) != null) {
-			String path = entry.getName();
-			File dest;
-			if (!entry.isDirectory() && filter.accept(path)
-					&& (dest = destinations.getFile(path)) != null) {
-				// make sure parent dirs exist
-				File parent = dest.getParentFile();
-				if (!parent.exists())
-					parent.mkdirs();
+			while ((entry = zis.getNextEntry()) != null) {
+				String path = entry.getName();
+				File dest;
+				if (!entry.isDirectory() && filter.accept(path)
+						&& (dest = destinations.getFile(path)) != null) {
+					// make sure parent dirs exist
+					File parent = dest.getParentFile();
+					if (!parent.exists())
+						parent.mkdirs();
 
-				// copy the file
-				FileOutputStream fos = new FileOutputStream(dest);
-				copy(zis, fos);
-				fos.close();
+					// copy the file
+					FileOutputStream fos = new FileOutputStream(dest);
+					copy(zis, fos);
+					fos.close();
 
-				// keep track of where we put the files
-				extractedFiles.add(dest);
+					// keep track of where we put the files
+					extractedFiles.add(dest);
+				}
+				zis.closeEntry();
 			}
-			zis.closeEntry();
+
+			zis.close();
 		}
 
-		zis.close();
-
 		return extractedFiles;
+	}
+
+	private static void extractFilesMatchingFromDirectory(File dir,
+			Set<File> visited, Collection<File> extracted, String path,
+			EntryFilter filter, DestinationProvider prov) throws IOException {
+		if (visited.contains(dir))
+			return;
+		visited.add(dir);
+		if (dir.isDirectory()) {
+			File[] children = dir.listFiles();
+			for (File child : children) {
+				path += child.getName();
+				if (child.isDirectory()) {
+					path += "/";
+					extractFilesMatchingFromDirectory(child, visited, extracted,
+							path, filter, prov);
+				} else {
+					File to;
+					if (filter.accept(path)
+							&& (to = prov.getFile(path)) != null) {
+						FileInputStream fis = new FileInputStream(child);
+						FileOutputStream fos = new FileOutputStream(to);
+
+						copy(fis, fos);
+
+						fis.close();
+						fos.close();
+					}
+				}
+			}
+		} else {
+			File to = null;
+			if (filter.accept(path) && (to = prov.getFile(path)) != null) {
+				FileInputStream fis = new FileInputStream(dir);
+				FileOutputStream fos = new FileOutputStream(to);
+
+				copy(fis, fos);
+
+				fis.close();
+				fos.close();
+			}
+		}
 	}
 
 	public static void extractFileFromSystemClasspath(String path, File to)
