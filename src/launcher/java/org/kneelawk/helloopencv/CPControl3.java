@@ -44,6 +44,8 @@ public class CPControl3 {
 		this.mainClassName = mainClassName;
 		this.baseDir = baseDir;
 
+		// TODO: add some way to manage automatic resource deletion on exit
+
 		Thread hook = new Thread(new Runnable() {
 			@Override
 			public void run() {

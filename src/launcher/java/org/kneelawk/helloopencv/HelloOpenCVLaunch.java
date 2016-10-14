@@ -15,17 +15,6 @@ public class HelloOpenCVLaunch {
 			throws IOException, ClassNotFoundException, NoSuchMethodException,
 			SecurityException, IllegalAccessException, IllegalArgumentException,
 			InvocationTargetException {
-		// CPControl c = new CPControl("org.kneelawk.helloopencv.HelloOpenCV");
-		// c.addExtractingNativeDir().addNatives("opencv", CPControl.isMe,
-		// str -> str.toLowerCase().contains("opencv"));
-		// c.addExtractingLibrary().addLibraries("opencv", CPControl.isMe,
-		// str -> str.toLowerCase().contains("opencv"));
-		//
-		// try {
-		// c.execute(args);
-		// } catch (IOException e) {
-		// e.printStackTrace();
-		// }
 
 		// initialize CPControl3 with a resources folder
 		CPControl3 c = new CPControl3("org.kneelawk.helloopencv.HelloOpenCV",
