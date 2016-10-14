@@ -65,6 +65,46 @@ public class CPControl3 {
 		operations.add(operation);
 	}
 
+	public void addLibrary(File library) {
+		operations.add(new LibraryAddOperation(library));
+	}
+
+	public void addNativeDir(File nativeDir) {
+		operations.add(new NativeAddOperation(nativeDir));
+	}
+
+	public LibraryExtractFromClasspathOperation
+			addExtractingFromClasspathLibrary() {
+		LibraryExtractFromClasspathOperation operation =
+				new LibraryExtractFromClasspathOperation();
+		operations.add(operation);
+		return operation;
+	}
+
+	public NativeExtractFromClasspathOperation
+			addExtractingFromClasspathNativeDir() {
+		NativeExtractFromClasspathOperation operation =
+				new NativeExtractFromClasspathOperation();
+		operations.add(operation);
+		return operation;
+	}
+
+	public LibraryExtractFromFileOperation
+			addExtractingFromFileLibrary(File file) {
+		LibraryExtractFromFileOperation operation =
+				new LibraryExtractFromFileOperation(file);
+		operations.add(operation);
+		return operation;
+	}
+
+	public NativeExtractFromFileOperation
+			addExtractingFromFileNativeDir(File file) {
+		NativeExtractFromFileOperation operation =
+				new NativeExtractFromFileOperation(file);
+		operations.add(operation);
+		return operation;
+	}
+
 	public void launch(String[] args) throws IOException {
 		ClassPath path = new ClassPath();
 
@@ -200,8 +240,8 @@ public class CPControl3 {
 		private List<ExtractFromCollectionDescription> descs =
 				new ArrayList<>();
 
-		public LibraryExtractFromClasspathOperation addLibrary(
-				ExtractFromCollectionDescription desc) {
+		public LibraryExtractFromClasspathOperation
+				addLibrary(ExtractFromCollectionDescription desc) {
 			descs.add(desc);
 			return this;
 		}
@@ -260,8 +300,8 @@ public class CPControl3 {
 		private List<ExtractFromCollectionDescription> descs =
 				new ArrayList<>();
 
-		public NativeExtractFromClasspathOperation addNative(
-				ExtractFromCollectionDescription desc) {
+		public NativeExtractFromClasspathOperation
+				addNative(ExtractFromCollectionDescription desc) {
 			descs.add(desc);
 			return this;
 		}
@@ -326,8 +366,8 @@ public class CPControl3 {
 			this.file = file;
 		}
 
-		public LibraryExtractFromFileOperation addLibrary(
-				ExtractDescription desc) {
+		public LibraryExtractFromFileOperation
+				addLibrary(ExtractDescription desc) {
 			descs.add(desc);
 			return this;
 		}
@@ -361,8 +401,8 @@ public class CPControl3 {
 			this.file = file;
 		}
 
-		public NativeExtractFromFileOperation addNative(
-				ExtractDescription desc) {
+		public NativeExtractFromFileOperation
+				addNative(ExtractDescription desc) {
 			descs.add(desc);
 			return this;
 		}
