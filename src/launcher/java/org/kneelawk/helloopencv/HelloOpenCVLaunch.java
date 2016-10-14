@@ -22,17 +22,20 @@ public class HelloOpenCVLaunch {
 
 		// extract application jar(s) and opencv jar
 		c.addOperation(new LibraryExtractFromFileOperation(CPControl3.ME)
-				.addLibrary("application", new DirectoryEntryFilter("/app/"))
+				.addLibrary("application", new DirectoryEntryFilter("/app/"),
+						CPControl3.ALWAYS_DELETE)
 				.addLibrary("opencv",
 						new AndEntryFilter(new DirectoryEntryFilter("/libs/"),
-								new NameContainsEntryFilter("opencv"))));
+								new NameContainsEntryFilter("opencv")),
+						CPControl3.ALWAYS_DELETE));
 
 		// extract opencv natives
 		c.addOperation(new NativeExtractFromFileOperation(CPControl3.ME)
 				.addNative("opencv",
 						new AndEntryFilter(
 								new DirectoryEntryFilter("/natives/"),
-								new NameContainsEntryFilter("opencv"))));
+								new NameContainsEntryFilter("opencv")),
+						CPControl3.ALWAYS_DELETE));
 
 		// launch the program
 		c.launch(args);

@@ -44,8 +44,6 @@ public class CPControl3 {
 		this.mainClassName = mainClassName;
 		this.baseDir = baseDir;
 
-		// TODO: add some way to manage automatic resource deletion on exit
-
 		Thread hook = new Thread(new Runnable() {
 			@Override
 			public void run() {
@@ -148,6 +146,22 @@ public class CPControl3 {
 		}
 	};
 
+	public static final ResourceDeletionPolicy ALWAYS_DELETE =
+			new ResourceDeletionPolicy() {
+				@Override
+				public boolean shouldDeleteOnExit(File resource) {
+					return true;
+				}
+			};
+
+	public static final ResourceDeletionPolicy NEVER_DELETE =
+			new ResourceDeletionPolicy() {
+				@Override
+				public boolean shouldDeleteOnExit(File resource) {
+					return false;
+				}
+			};
+
 	private static Set<File> librariesOnClasspath;
 
 	public static interface DependencyOperation {
@@ -193,9 +207,10 @@ public class CPControl3 {
 		}
 
 		public LibraryExtractFromClasspathOperation addLibrary(String dirName,
-				FileFilter toSearch, EntryFilter searchFor) {
+				FileFilter toSearch, EntryFilter searchFor,
+				ResourceDeletionPolicy deletionPolicy) {
 			addLibrary(new ExtractFromClasspathDescription(dirName, toSearch,
-					searchFor));
+					searchFor, deletionPolicy));
 			return this;
 		}
 
@@ -252,9 +267,10 @@ public class CPControl3 {
 		}
 
 		public NativeExtractFromClasspathOperation addNative(String dirName,
-				FileFilter toSearch, EntryFilter searchFor) {
+				FileFilter toSearch, EntryFilter searchFor,
+				ResourceDeletionPolicy deletionPolicy) {
 			addNative(new ExtractFromClasspathDescription(dirName, toSearch,
-					searchFor));
+					searchFor, deletionPolicy));
 			return this;
 		}
 
@@ -317,8 +333,9 @@ public class CPControl3 {
 		}
 
 		public LibraryExtractFromFileOperation addLibrary(String dirName,
-				EntryFilter searchFor) {
-			addLibrary(new ExtractFromFileDescription(dirName, searchFor));
+				EntryFilter searchFor, ResourceDeletionPolicy deletionPolicy) {
+			addLibrary(new ExtractFromFileDescription(dirName, searchFor,
+					deletionPolicy));
 			return this;
 		}
 
@@ -351,8 +368,9 @@ public class CPControl3 {
 		}
 
 		public NativeExtractFromFileOperation addNative(String dirName,
-				EntryFilter searchFor) {
-			addNative(new ExtractFromFileDescription(dirName, searchFor));
+				EntryFilter searchFor, ResourceDeletionPolicy deletionPolicy) {
+			addNative(new ExtractFromFileDescription(dirName, searchFor,
+					deletionPolicy));
 			return this;
 		}
 
@@ -487,28 +505,35 @@ public class CPControl3 {
 
 	public static class FlatDestinationProvider implements DestinationProvider {
 		private File parent;
+		private ResourceDeletionPolicy policy;
 
-		public FlatDestinationProvider(File parent) {
+		public FlatDestinationProvider(File parent,
+				ResourceDeletionPolicy policy) {
 			this.parent = parent;
+			this.policy = policy;
 		}
 
 		@Override
 		public File getFile(String path) {
-			return new File(parent, getPathName(path));
+			return inactResourceDeletionPolicy(
+					new File(parent, getPathName(path)), policy);
 		}
 	}
 
 	public static class DirectoryDestinationProvider
 			implements DestinationProvider {
 		private File parent;
+		private ResourceDeletionPolicy policy;
 
-		public DirectoryDestinationProvider(File parent) {
+		public DirectoryDestinationProvider(File parent,
+				ResourceDeletionPolicy policy) {
 			this.parent = parent;
+			this.policy = policy;
 		}
 
 		@Override
 		public File getFile(String path) {
-			return new File(parent, path);
+			return inactResourceDeletionPolicy(new File(parent, path), policy);
 		}
 	}
 
@@ -517,7 +542,8 @@ public class CPControl3 {
 		private File baseDir;
 		private Collection<? extends ExtractDescription> descs;
 
-		private Map<String, String> acceptedDirNames = new HashMap<>();
+		private Map<String, ExtractDescription> acceptedDirDescriptions =
+				new HashMap<>();
 
 		public OwnedObjectExtractionHandler(File baseDir,
 				Collection<? extends ExtractDescription> descs) {
@@ -529,13 +555,15 @@ public class CPControl3 {
 		public File getFile(String path) {
 			// getFile should not be called until the path has already been
 			// accepted
-			if (!acceptedDirNames.containsKey(path))
+			if (!acceptedDirDescriptions.containsKey(path))
 				throw new RuntimeException(
 						"File destination requested before the path has been accepted");
-			File dir = new File(baseDir, acceptedDirNames.get(path));
+			ExtractDescription desc = acceptedDirDescriptions.get(path);
+			File dir = new File(baseDir, desc.getDirName());
 			if (!dir.exists())
 				dir.mkdir();
-			return new File(dir, getPathName(path));
+			return inactResourceDeletionPolicy(new File(dir, getPathName(path)),
+					desc.getDeletionPolicy());
 		}
 
 		@Override
@@ -544,7 +572,7 @@ public class CPControl3 {
 			for (ExtractDescription desc : descs) {
 				if (desc.getSearchFor().accept(path)) {
 					keep = true;
-					acceptedDirNames.put(path, desc.getDirName());
+					acceptedDirDescriptions.put(path, desc);
 					break;
 				}
 			}
@@ -553,22 +581,30 @@ public class CPControl3 {
 
 	}
 
+	public static interface ResourceDeletionPolicy {
+		public boolean shouldDeleteOnExit(File resource);
+	}
+
 	public static interface ExtractDescription {
 		public String getDirName();
 
 		public EntryFilter getSearchFor();
+
+		public ResourceDeletionPolicy getDeletionPolicy();
 	}
 
 	public static class ExtractFromFileDescription
 			implements ExtractDescription {
 		private String dirName;
 		private EntryFilter searchFor;
+		private ResourceDeletionPolicy deletionPolicy;
 
-		public ExtractFromFileDescription(String dirName,
-				EntryFilter searchFor) {
+		public ExtractFromFileDescription(String dirName, EntryFilter searchFor,
+				ResourceDeletionPolicy deletionPolicy) {
 			super();
 			this.dirName = dirName;
 			this.searchFor = searchFor;
+			this.deletionPolicy = deletionPolicy;
 		}
 
 		public String getDirName() {
@@ -577,6 +613,10 @@ public class CPControl3 {
 
 		public EntryFilter getSearchFor() {
 			return searchFor;
+		}
+
+		public ResourceDeletionPolicy getDeletionPolicy() {
+			return deletionPolicy;
 		}
 	}
 
@@ -591,8 +631,9 @@ public class CPControl3 {
 		private FileFilter toSearch;
 
 		public ExtractFromClasspathDescription(String dirName,
-				FileFilter toSearch, EntryFilter searchFor) {
-			super(dirName, searchFor);
+				FileFilter toSearch, EntryFilter searchFor,
+				ResourceDeletionPolicy deletionPolicy) {
+			super(dirName, searchFor, deletionPolicy);
 			this.toSearch = toSearch;
 		}
 
@@ -603,6 +644,13 @@ public class CPControl3 {
 
 	public static String getPathName(String path) {
 		return path.substring(path.lastIndexOf('/') + 1);
+	}
+
+	public static File inactResourceDeletionPolicy(File resource,
+			ResourceDeletionPolicy policy) {
+		if (policy.shouldDeleteOnExit(resource))
+			resource.deleteOnExit();
+		return resource;
 	}
 
 	public static String[] getClassPath() {
