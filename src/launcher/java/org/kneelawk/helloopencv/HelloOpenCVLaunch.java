@@ -2,17 +2,13 @@ package org.kneelawk.helloopencv;
 
 import java.io.File;
 import java.io.IOException;
-import java.lang.reflect.InvocationTargetException;
 
 import org.kneelawk.helloopencv.CPControl3.AndEntryFilter;
 import org.kneelawk.helloopencv.CPControl3.DirectoryEntryFilter;
 import org.kneelawk.helloopencv.CPControl3.NameContainsEntryFilter;
 
 public class HelloOpenCVLaunch {
-	public static void main(String args[])
-			throws IOException, ClassNotFoundException, NoSuchMethodException,
-			SecurityException, IllegalAccessException, IllegalArgumentException,
-			InvocationTargetException {
+	public static void main(String args[]) {
 
 		// initialize CPControl3 with a resources folder
 		CPControl3 c = new CPControl3("org.kneelawk.helloopencv.HelloOpenCV",
@@ -34,6 +30,10 @@ public class HelloOpenCVLaunch {
 				CPControl3.ALWAYS_DELETE);
 
 		// launch the program
-		c.launch(args);
+		try {
+			c.launch(args);
+		} catch (IOException e) {
+			e.printStackTrace();
+		}
 	}
 }
