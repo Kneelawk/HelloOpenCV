@@ -184,14 +184,17 @@ public class CPControl3 {
 		private List<ExtractFromCollectionDescription> descs =
 				new ArrayList<>();
 
-		public void addLibrary(ExtractFromCollectionDescription desc) {
+		public LibraryExtractFromClasspathOperation addLibrary(
+				ExtractFromCollectionDescription desc) {
 			descs.add(desc);
+			return this;
 		}
 
-		public void addLibrary(String dirName, FileFilter toSearch,
-				EntryFilter searchFor) {
+		public LibraryExtractFromClasspathOperation addLibrary(String dirName,
+				FileFilter toSearch, EntryFilter searchFor) {
 			addLibrary(new ExtractFromClasspathDescription(dirName, toSearch,
 					searchFor));
+			return this;
 		}
 
 		@Override
@@ -240,14 +243,17 @@ public class CPControl3 {
 		private List<ExtractFromCollectionDescription> descs =
 				new ArrayList<>();
 
-		public void addNative(ExtractFromCollectionDescription desc) {
+		public NativeExtractFromClasspathOperation addNative(
+				ExtractFromCollectionDescription desc) {
 			descs.add(desc);
+			return this;
 		}
 
-		public void addNative(String dirName, FileFilter toSearch,
-				EntryFilter searchFor) {
+		public NativeExtractFromClasspathOperation addNative(String dirName,
+				FileFilter toSearch, EntryFilter searchFor) {
 			addNative(new ExtractFromClasspathDescription(dirName, toSearch,
 					searchFor));
+			return this;
 		}
 
 		@Override
@@ -302,12 +308,16 @@ public class CPControl3 {
 			this.file = file;
 		}
 
-		public void addLibrary(ExtractDescription desc) {
+		public LibraryExtractFromFileOperation addLibrary(
+				ExtractDescription desc) {
 			descs.add(desc);
+			return this;
 		}
 
-		public void addLibrary(String dirName, EntryFilter searchFor) {
+		public LibraryExtractFromFileOperation addLibrary(String dirName,
+				EntryFilter searchFor) {
 			addLibrary(new ExtractFromFileDescription(dirName, searchFor));
+			return this;
 		}
 
 		@Override
@@ -332,12 +342,16 @@ public class CPControl3 {
 			this.file = file;
 		}
 
-		public void addNative(ExtractDescription desc) {
+		public NativeExtractFromFileOperation addNative(
+				ExtractDescription desc) {
 			descs.add(desc);
+			return this;
 		}
 
-		public void addNative(String dirName, EntryFilter searchFor) {
+		public NativeExtractFromFileOperation addNative(String dirName,
+				EntryFilter searchFor) {
 			addNative(new ExtractFromFileDescription(dirName, searchFor));
+			return this;
 		}
 
 		@Override
