@@ -1,6 +1,9 @@
 package org.kneelawk.helloopencv;
 
 import java.io.File;
+import java.io.FileOutputStream;
+import java.io.IOException;
+import java.io.InputStream;
 
 import org.opencv.core.Core;
 import org.opencv.core.Mat;
@@ -20,8 +23,14 @@ public class HelloOpenCV {
 	public static void main(String args[]) {
 		System.out.println("Welcome to OpenCV " + Core.VERSION);
 
-		CascadeClassifier faceDetector = new CascadeClassifier(HelloOpenCV.class
-				.getResource("/lbpcascade_frontalface.xml").getPath());
+		CascadeClassifier faceDetector;
+		try {
+			faceDetector = new CascadeClassifier(extract("/lbpcascade_frontalface.xml").getCanonicalPath());
+		} catch (IOException e) {
+			e.printStackTrace();
+			return;
+		}
+
 		Mat image = Imgcodecs.imread("images/people.jpg");
 		Mat gray = new Mat();
 		Imgproc.cvtColor(image, gray, Imgproc.COLOR_BGR2GRAY);
@@ -44,27 +53,42 @@ public class HelloOpenCV {
 
 		for (int i = 0; i < array.length; i++) {
 			Rect rect = array[i];
-			System.out.println("Writing subimage with coords: x:" + rect.x
-					+ " - " + (rect.x + rect.width) + ", y: " + rect.y + " - "
-					+ (rect.y + rect.height));
+			System.out.println("Writing subimage with coords: x:" + rect.x + " - " + (rect.x + rect.width) + ", y: "
+					+ rect.y + " - " + (rect.y + rect.height));
 			int minx = Math.max(rect.x - rect.width / 2, 0);
-			int maxx = Math.min(rect.x + rect.width + rect.width / 2,
-					image.width());
+			int maxx = Math.min(rect.x + rect.width + rect.width / 2, image.width());
 			int miny = Math.max(rect.y - rect.height / 2, 0);
-			int maxy = Math.min(rect.y + rect.height + rect.height / 2,
-					image.height());
+			int maxy = Math.min(rect.y + rect.height + rect.height / 2, image.height());
 			Mat nimg = image.submat(miny, maxy, minx, maxx);
 			Imgcodecs.imwrite(out + "face" + i + ".png", nimg);
 		}
 
 		for (Rect rect : detectedFaces.toArray()) {
-			Imgproc.rectangle(image, new Point(rect.x, rect.y),
-					new Point(rect.x + rect.width, rect.y + rect.height),
+			Imgproc.rectangle(image, new Point(rect.x, rect.y), new Point(rect.x + rect.width, rect.y + rect.height),
 					new Scalar(0, 255, 0), 2);
 		}
 
 		Imgcodecs.imwrite(out + "fullImage.png", image);
 		Imgcodecs.imwrite(out + "fullImageGray.png", gray);
 		System.out.println("Detected faces image written");
+	}
+
+	public static File extract(String cp) throws IOException {
+		InputStream is = HelloOpenCV.class.getResourceAsStream(cp);
+
+		File toDir = new File("resources/extracted/");
+		if (!toDir.exists())
+			toDir.mkdirs();
+
+		File to = new File(toDir, cp.substring(cp.lastIndexOf('/') + 1));
+		FileOutputStream fos = new FileOutputStream(to);
+		byte[] buf = new byte[8192];
+		int read;
+		while ((read = is.read(buf)) >= 0) {
+			fos.write(buf, 0, read);
+		}
+		is.close();
+		fos.close();
+		return to;
 	}
 }
