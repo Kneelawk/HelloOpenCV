@@ -81,6 +81,7 @@ public class HelloOpenCV {
 			toDir.mkdirs();
 
 		File to = new File(toDir, cp.substring(cp.lastIndexOf('/') + 1));
+		to.deleteOnExit();
 		FileOutputStream fos = new FileOutputStream(to);
 		byte[] buf = new byte[8192];
 		int read;
